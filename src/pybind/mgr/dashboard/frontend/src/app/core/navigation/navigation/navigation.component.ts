@@ -2,6 +2,7 @@ import { Component, HostBinding, OnDestroy, OnInit } from '@angular/core';
 
 import { Subscription } from 'rxjs';
 
+import { HealthService } from '~/app/shared/api/health.service';
 import { Icons } from '~/app/shared/enum/icons.enum';
 import { Permissions } from '~/app/shared/models/permissions';
 import { AuthStorageService } from '~/app/shared/services/auth-storage.service';
@@ -10,8 +11,11 @@ import {
   FeatureTogglesService
 } from '~/app/shared/services/feature-toggles.service';
 import { PrometheusAlertService } from '~/app/shared/services/prometheus-alert.service';
+import { RefreshIntervalService } from '~/app/shared/services/refresh-interval.service';
 import { SummaryService } from '~/app/shared/services/summary.service';
 import { TelemetryNotificationService } from '~/app/shared/services/telemetry-notification.service';
+
+
 
 @Component({
   selector: 'cd-navigation',
@@ -23,7 +27,8 @@ export class NavigationComponent implements OnInit, OnDestroy {
   @HostBinding('class') get class(): string {
     return 'top-notification-' + this.notifications.length;
   }
-
+  healthData: any;
+  interval = new Subscription();
   permissions: Permissions;
   enabledFeature$: FeatureTogglesMap$;
   summaryData: any;
@@ -43,7 +48,9 @@ export class NavigationComponent implements OnInit, OnDestroy {
     private summaryService: SummaryService,
     private featureToggles: FeatureTogglesService,
     private telemetryNotificationService: TelemetryNotificationService,
-    public prometheusAlertService: PrometheusAlertService
+    public prometheusAlertService: PrometheusAlertService,
+    private refreshIntervalService: RefreshIntervalService,
+    private healthService: HealthService
   ) {
     this.permissions = this.authStorageService.getPermissions();
     this.enabledFeature$ = this.featureToggles.get();
@@ -70,12 +77,20 @@ export class NavigationComponent implements OnInit, OnDestroy {
         this.showTopNotification('telemetryNotificationEnabled', visible);
       })
     );
+    this.interval = this.refreshIntervalService.intervalData$.subscribe(() => {
+      this.getHealth();
+    });
   }
 
   ngOnDestroy(): void {
     this.subs.unsubscribe();
   }
 
+  getHealth() {
+    this.healthService.getMinimalHealth().subscribe((data: any) => {
+      this.healthData = data;
+    });
+  }
   blockHealthColor() {
     if (this.summaryData && this.summaryData.rbd_mirroring) {
       if (this.summaryData.rbd_mirroring.errors > 0) {
